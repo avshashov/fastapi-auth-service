@@ -1,1 +1,4 @@
 .idea/
+certs
+config.yaml
+__pycache__/
