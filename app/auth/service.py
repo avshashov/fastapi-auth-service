@@ -10,7 +10,7 @@ from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.authentication import AuthenticationError
 
-from app.database.models import RefreshSession, User, UserDevice
+from app.database.models import RefreshSession, User, Device
 from app.database.settings import database
 from app.errors import (
     IncorrectCredentialsException,
@@ -166,7 +166,7 @@ class AuthService:
             await RefreshSession.revoke_active_tokens_for_user(
                 session, user_id=to_encode['sub'], device_id=user_device.device_id
             )
-            await UserDevice.add_user_device_to_db(session, user_device)
+            await Device.add_user_device_to_db(session, user_device)
             await RefreshSession.add_token_to_db(session, token_data)
 
         encoded_jwt = jwt.encode(claims=to_encode, key=PRIVATE_KEY, algorithm=ALGORITHM)
