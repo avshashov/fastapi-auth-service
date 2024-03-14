@@ -1,5 +1,8 @@
+"""
+Authentication service that implements the logic for working with jwt tokens.
+"""
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 from fastapi import HTTPException, Request
 from jose import JWTError, jwt
@@ -29,15 +32,24 @@ class AuthService:
     pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
 
     @staticmethod
-    def verify_password(plain_password: str, hashed_password: str) -> bool:
-        return AuthService.pwd_context.verify(plain_password, hashed_password)
+    def verify_password(password: str, hashed_password: str) -> bool:
+        """
+        Verify password against an existing hash.
+        """
+        return AuthService.pwd_context.verify(password, hashed_password)
 
     @staticmethod
     def get_password_hash(password: str) -> str:
+        """
+        Calculate hash for password.
+        """
         return AuthService.pwd_context.hash(password)
 
     @staticmethod
     async def authenticate_user(session: AsyncSession, email: str, password: str) -> UserWithMetaOutput:
+        """
+        Authenticate the user using email and password.
+        """
         user = await User.get_user_by_email(session, email)
         if not user:
             raise IncorrectCredentialsException
@@ -47,6 +59,9 @@ class AuthService:
 
     @staticmethod
     async def get_current_active_user(token: str, session: AsyncSession) -> UserWithMetaOutput:
+        """
+        Get current user if active.
+        """
         payload = AuthService._verify_and_decode_token(token)
         user = await User.get_user_by_user_id(session, user_id=payload.get('sub'))
         if not user:
@@ -57,8 +72,11 @@ class AuthService:
 
     @staticmethod
     async def create_token_pair(
-        data: dict, session: AsyncSession, user_device: UserDeviceInput
+            data: dict, session: AsyncSession, user_device: UserDeviceInput
     ) -> tuple[str, str, datetime]:
+        """
+        Create an access/refresh token pair.
+        """
         access_token, _ = await AuthService._create_token(
             data=data, expires_minutes=ACCESS_TOKEN_EXPIRE_MINUTES
         )
@@ -73,14 +91,18 @@ class AuthService:
 
     @staticmethod
     async def validate_refresh_token(
-        refresh_token: str, session: AsyncSession, user_device: UserDeviceInput
+            refresh_token: str, session: AsyncSession, user_device: UserDeviceInput
     ) -> bool:
+        """
+        Validate the refresh token.
+        """
         payload = AuthService._verify_and_decode_token(token=refresh_token)
         jti = payload.get('jti')
         if not jti:
             raise TokenValidationException
 
-        if datetime.utcfromtimestamp(int(payload.get('exp'))) <= datetime.now():
+        # if datetime.utcfromtimestamp(int(payload.get('exp'))) <= datetime.now():
+        if datetime.fromtimestamp(int(payload.get('exp')), UTC) <= datetime.now():
             raise SessionExpiredException
 
         if payload.get('device_id') != user_device.device_id:
@@ -96,6 +118,9 @@ class AuthService:
 
     @staticmethod
     async def validate_access_token_and_get_user(request: Request) -> UserWithMetaOutput:
+        """
+        Validate the access token and get current user.
+        """
         if 'Authorization' not in request.headers:
             raise AuthenticationError('No authorization header')
 
@@ -122,11 +147,11 @@ class AuthService:
 
     @staticmethod
     async def _create_token(
-        data: dict,
-        expires_minutes: int,
-        session: AsyncSession = None,
-        is_refresh_token: bool = False,
-        user_device: UserDeviceInput = None,
+            data: dict,
+            expires_minutes: int,
+            session: AsyncSession = None,
+            is_refresh_token: bool = False,
+            user_device: UserDeviceInput = None,
     ) -> tuple[str, datetime]:
         to_encode = data.copy()
         expire = datetime.now() + timedelta(minutes=expires_minutes)
