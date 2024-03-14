@@ -1,0 +1,16 @@
+database:
+  dbms: # Main database for application (str)
+  driver: # Async or sync db driver (str, optional)
+  host: # Database host (str)
+  port: # Database port (int, optional)
+  user: # Database user (str)
+  password: # Database password (str, optional)
+  database: # Database name (str)
+  echo_db: # Print database log output (bool)
+
+authentication:
+  algorithm: # Encryption algorithm, example: RS256 or HS256 (str)
+  access_token_expire_minutes: # Time in minutes until the access token expires (int)
+  refresh_token_expire_minutes: # Time in minutes until the refresh token expires (int)
+  private_key: # Path to the file with the private key
+  public_key: # Path to the file with the public key, specified only for asymmetric encryption (optional)
