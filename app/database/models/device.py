@@ -17,12 +17,12 @@ class Device(Base):
     @classmethod
     async def add_user_device_to_db(cls, session: AsyncSession, user_device: UserDeviceInput) -> None:
         if not await cls.check_exists_user_device(session, device_id=user_device.device_id):
-            device = Device(**user_device.model_dump())
+            device = cls(**user_device.model_dump())
             session.add(device)
             await session.commit()
 
     @classmethod
     async def check_exists_user_device(cls, session: AsyncSession, device_id: str) -> bool:
-        query = select(Device).where(Device.device_id == device_id)
+        query = select(cls).where(cls.device_id == device_id)
         device = await session.execute(query)
         return bool(device.scalars().first())
