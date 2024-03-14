@@ -2,7 +2,7 @@
 Authentication service that implements the logic for working with jwt tokens.
 """
 import uuid
-from datetime import datetime, timedelta, timezone, UTC
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, Request
 from jose import JWTError, jwt
@@ -101,8 +101,7 @@ class AuthService:
         if not jti:
             raise TokenValidationException
 
-        # if datetime.utcfromtimestamp(int(payload.get('exp'))) <= datetime.now():
-        if datetime.fromtimestamp(int(payload.get('exp')), UTC) <= datetime.now():
+        if datetime.fromtimestamp(int(payload.get('exp')), timezone.utc) <= datetime.now(timezone.utc):
             raise SessionExpiredException
 
         if payload.get('device_id') != user_device.device_id:
@@ -133,7 +132,7 @@ class AuthService:
         if payload.get('jti'):
             raise AuthenticationError('Invalid token')
 
-        if datetime.utcfromtimestamp(int(payload.get('exp'))) <= datetime.now():
+        if datetime.fromtimestamp(int(payload.get('exp')), timezone.utc) <= datetime.now(timezone.utc):
             raise AuthenticationError('Session expired')
 
         user_id = payload.get('sub')
