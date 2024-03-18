@@ -1,21 +1,23 @@
 """
 Authentication service that implements the logic for working with jwt tokens.
 """
+
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import HTTPException, Request
+from fastapi import Request
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.authentication import AuthenticationError
 
-from app.database.models import RefreshSession, User, Device
+from app.database.models import Device, RefreshSession, User
 from app.database.settings import database
 from app.errors import (
+    AuthorizationHeaderException,
     IncorrectCredentialsException,
     SessionExpiredException,
     TokenValidationException,
+    UserInactiveException,
     ValidateCredentialsException,
 )
 from app.schemas import TokenWithDeviceCreateInput, UserDeviceInput, UserWithMetaOutput
@@ -67,12 +69,12 @@ class AuthService:
         if not user:
             raise ValidateCredentialsException
         if user.disabled:
-            raise HTTPException(status_code=400, detail='Inactive user')
+            raise UserInactiveException
         return UserWithMetaOutput.model_validate(user)
 
     @staticmethod
     async def create_token_pair(
-            data: dict, session: AsyncSession, user_device: UserDeviceInput
+        data: dict, session: AsyncSession, user_device: UserDeviceInput
     ) -> tuple[str, str, datetime]:
         """
         Create an access/refresh token pair.
@@ -91,7 +93,7 @@ class AuthService:
 
     @staticmethod
     async def validate_refresh_token(
-            refresh_token: str, session: AsyncSession, user_device: UserDeviceInput
+        refresh_token: str, session: AsyncSession, user_device: UserDeviceInput
     ) -> bool:
         """
         Validate the refresh token.
@@ -121,36 +123,36 @@ class AuthService:
         Validate the access token and get current user.
         """
         if 'Authorization' not in request.headers:
-            raise AuthenticationError('No authorization header')
+            raise AuthorizationHeaderException
 
         auth = request.headers['Authorization']
         scheme, token = auth.split()
         if scheme.lower() != 'bearer':
-            raise AuthenticationError('Unauthorized access')
+            raise ValidateCredentialsException
 
         payload = AuthService._verify_and_decode_token(token=token)
         if payload.get('jti'):
-            raise AuthenticationError('Invalid token')
+            raise TokenValidationException
 
         if datetime.fromtimestamp(int(payload.get('exp')), timezone.utc) <= datetime.now(timezone.utc):
-            raise AuthenticationError('Session expired')
+            raise SessionExpiredException
 
         user_id = payload.get('sub')
         user = None
         async for session in database.get_session():
             user = await User.get_user_by_user_id(session, user_id=user_id)
         if not user:
-            raise AuthenticationError('Invalid token')
+            raise TokenValidationException
 
         return UserWithMetaOutput.model_validate(user)
 
     @staticmethod
     async def _create_token(
-            data: dict,
-            expires_minutes: int,
-            session: AsyncSession = None,
-            is_refresh_token: bool = False,
-            user_device: UserDeviceInput = None,
+        data: dict,
+        expires_minutes: int,
+        session: AsyncSession = None,
+        is_refresh_token: bool = False,
+        user_device: UserDeviceInput = None,
     ) -> tuple[str, datetime]:
         to_encode = data.copy()
         expire = datetime.now() + timedelta(minutes=expires_minutes)
